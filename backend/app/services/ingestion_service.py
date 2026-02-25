@@ -1,13 +1,13 @@
 import os
 import json
+import shutil
 import numpy as np
 import faiss
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from app.core.model_loader import model_loader
-
-DATA_DIR = "data"
-
+from app.core.config import DATA_DIR
+from app.core.logger import logger
 
 def seconds_to_timestamp(seconds):
     hours = int(seconds // 3600)
@@ -39,15 +39,36 @@ def chunk_data(data):
     ]
 
 
+def artifacts_valid(video_path):
+    required_files = [
+        "embeddings.npy",
+        "index.faiss",
+        "chunks.json"
+    ]
+
+    for file in required_files:
+        if not os.path.exists(os.path.join(video_path, file)):
+            return False
+
+    return True
+
+
 def ingest_video(video_id: str):
     video_path = os.path.join(DATA_DIR, video_id)
-
+    logger.info(f"Ingestion started for video {video_id}")
+    # If folder exists, validate artifacts
     if os.path.exists(video_path):
-        return {
-            "message": "Video already ingested.",
-            "video_id": video_id,
-            "status": "cached"
-        }
+        if artifacts_valid(video_path):
+            logger.info(f"Video {video_id} already ingested. Using cached artifacts.")
+            return {
+                "message": "Video already ingested.",
+                "video_id": video_id,
+                "status": "cached"
+            }
+        else:
+            # Corrupted or partial ingestion → clean up
+            logger.warning(f"Artifacts corrupted for video {video_id}. Cleaning up.")
+            shutil.rmtree(video_path)
 
     os.makedirs(video_path, exist_ok=True)
 
@@ -69,7 +90,7 @@ def ingest_video(video_id: str):
 
     with open(os.path.join(video_path, "chunks.json"), "w") as f:
         json.dump(chunks, f)
-
+    logger.info(f"Ingestion successful for video {video_id}")
     return {
         "message": "Video ingested successfully.",
         "video_id": video_id,
