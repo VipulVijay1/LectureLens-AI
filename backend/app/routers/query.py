@@ -6,17 +6,16 @@ router = APIRouter(prefix="/query", tags=["Query"])
 
 @router.post("/", response_model=QueryResponse)
 def query(request: QueryRequest):
-    try:
-        results = retrieve(
-            video_id=request.video_id,
-            query=request.query,
-            top_k=request.top_k
-        )
+    rag_output = retrieve(
+        video_id=request.video_id,
+        query=request.query,
+        top_k=request.top_k
+    )
 
-        return {
-            "video_id": request.video_id,
-            "results": results
-        }
+    return {
+        "video_id": request.video_id,
+        "answer": rag_output["answer"],
+        "sources": rag_output["sources"]
+    }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+   

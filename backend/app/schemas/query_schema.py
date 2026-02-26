@@ -16,4 +16,5 @@ class QueryResult(BaseModel):
 
 class QueryResponse(BaseModel):
     video_id: str
-    results: List[QueryResult]
+    answer: str
+    sources: List[QueryResult]

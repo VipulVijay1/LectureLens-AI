@@ -8,6 +8,7 @@ from app.core.model_loader import model_loader
 from app.core.index_manager import index_manager
 from app.core.config import DATA_DIR
 from app.core.logger import logger
+from app.services.rag_service import generate_generative_answer
 
 def retrieve(video_id: str, query: str, top_k: int = 5):
     from app.core.logger import logger
@@ -67,4 +68,6 @@ def retrieve(video_id: str, query: str, top_k: int = 5):
         f"Total time: {total_time:.4f}s"
     )
 
-    return retrieved
+    rag_output = generate_generative_answer(query, retrieved)
+
+    return rag_output

@@ -30,14 +30,17 @@ def fetch_transcript(video_id):
 
 
 def chunk_data(data):
-    return [
-        {
-            "timestamp": item["timestamp"],
-            "text": item["text"]
-        }
-        for item in data
-    ]
-
+    window_size = 8
+    overlap = 2
+    chunks = []
+    for i in range(0, len(transcript), window_size - overlap):
+        window = transcript[i:i+window_size]
+        combined_text = " ".join([x["text"] for x in window])
+        chunks.append({
+            "text": combined_text,
+            "timestamp": window[0]["timestamp"]
+        })
+    return chunks
 
 def artifacts_valid(video_path):
     required_files = [
