@@ -5,7 +5,7 @@ import numpy as np
 import faiss
 
 from youtube_transcript_api import YouTubeTranscriptApi
-from app.core.model_loader import model_loader
+
 from app.core.config import DATA_DIR
 from app.core.logger import logger
 
@@ -29,17 +29,28 @@ def fetch_transcript(video_id):
     return data
 
 
-def chunk_data(data):
-    window_size = 8
-    overlap = 2
+def chunk_data(transcript, window_size=18, overlap=6):
+
     chunks = []
-    for i in range(0, len(transcript), window_size - overlap):
-        window = transcript[i:i+window_size]
-        combined_text = " ".join([x["text"] for x in window])
+    step = window_size - overlap
+
+    for i in range(0, len(transcript), step):
+        window = transcript[i:i + window_size]
+
+        if not window:
+            continue
+
+        combined_text = " ".join([item["text"] for item in window])
+
+        # Skip very short chunks
+        if len(combined_text.split()) < 40:
+            continue
+
         chunks.append({
-            "text": combined_text,
+            "text": combined_text.strip(),
             "timestamp": window[0]["timestamp"]
         })
+
     return chunks
 
 def artifacts_valid(video_path):
