@@ -9,6 +9,11 @@ from app.core.config import DATA_DIR
 from app.core.logger import logger
 from app.services.llm_service import generate_answer_with_llm
 from app.core.model_loader import model_loader
+from app.services.evaluation_service import (
+    evaluate_retrieval,
+    evaluate_faithfulness,
+    evaluate_answer_relevance
+)
 
 
 def retrieve(video_id: str, query: str, top_k: int = 20):
@@ -92,6 +97,10 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
 
     answer = generate_answer_with_llm(query, top_chunks)
 
+    precision = evaluate_retrieval(query, top_chunks)
+    faithfulness = evaluate_faithfulness(answer, top_chunks)
+    relevance = evaluate_answer_relevance(query, answer)
+
     total_time = time.time() - start_time
 
     logger.info(
@@ -105,5 +114,10 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
     return {
         "video_id": video_id,
         "answer": answer,
-        "sources": top_chunks
+        "sources": top_chunks,
+        "evaluation": {
+            "precision_at_k": precision,
+            "faithfulness_score": faithfulness,
+            "answer_relevance_score": relevance
+        }
     }

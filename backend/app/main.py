@@ -5,8 +5,17 @@ from app.routers import health
 from app.routers import ingest
 from app.routers import query
 from app.core.model_loader import model_loader
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="LectureLens AI Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(health.router)

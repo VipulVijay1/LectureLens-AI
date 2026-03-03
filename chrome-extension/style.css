@@ -1,0 +1,17 @@
+#lecturelens-panel {
+    position: fixed;
+    top: 100px;
+    right: 0;
+    width: 350px;
+    height: 80vh;
+    background: white;
+    z-index: 9999;
+    box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+    padding: 10px;
+    overflow-y: auto;
+}
+
+#lecturelens-panel input {
+    width: 100%;
+    margin-bottom: 8px;
+}
