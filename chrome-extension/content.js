@@ -3,10 +3,15 @@ function createPanel() {
     panel.id = "lecturelens-panel";
 
     panel.innerHTML = `
+    <div id="ll-header">
         <h2>LectureLens AI</h2>
-        <input type="text" id="ll-query" placeholder="Ask about this video..." />
-        <button id="ll-ask">Ask</button>
-        <div id="ll-response"></div>
+        <button id="ll-toggle">−</button>
+    </div>
+
+    <input type="text" id="ll-query" placeholder="Ask about this video..." />
+    <button id="ll-ask">Ask</button>
+
+    <div id="ll-response"></div>
     `;
 
     document.body.appendChild(panel);
@@ -30,12 +35,47 @@ function convertToSeconds(timestamp) {
 
 
 function jumpToTimestamp(seconds) {
+
     const video = document.querySelector("video");
 
-    if (video) {
-        video.currentTime = seconds;
-        video.play();
+    if (!video) return;
+
+    const start = video.currentTime;
+    const diff = seconds - start;
+    const duration = 400;
+    const startTime = performance.now();
+
+    function animate(time) {
+
+        const progress = Math.min((time - startTime) / duration, 1);
+
+        video.currentTime = start + diff * progress;
+
+        if (progress < 1) requestAnimationFrame(animate);
     }
+
+    requestAnimationFrame(animate);
+
+    video.play();
+}
+
+function createFloatingButton() {
+
+    const btn = document.createElement("div");
+
+    btn.id = "ll-floating-btn";
+
+    btn.innerText = "AI";
+
+    document.body.appendChild(btn);
+
+    btn.onclick = () => {
+
+        const panel = document.getElementById("lecturelens-panel");
+
+        panel.style.display =
+            panel.style.display === "none" ? "flex" : "none";
+    };
 }
 
 async function askQuestion() {
@@ -43,7 +83,10 @@ async function askQuestion() {
     const videoId = getVideoId();
     const responseDiv = document.getElementById("ll-response");
 
-    responseDiv.innerHTML = "Thinking...";
+    responseDiv.innerHTML = `
+        <div class="ll-loader"></div>
+        <div class="ll-loading-text">LectureLens AI is thinking...</div>
+        `;
 
     const res = await fetch("http://127.0.0.1:8000/query/", {
         method: "POST",
@@ -69,8 +112,11 @@ async function askQuestion() {
             html += `
                 <li>
                     <button class="ll-timestamp" data-time="${convertToSeconds(source.timestamp)}">
-                        ${source.timestamp}
+                        ⏱ ${source.timestamp}
                     </button>
+                    <div class="ll-snippet">
+                        ${source.text}
+                    </div>
                 </li>
             `;
         });
@@ -81,6 +127,7 @@ async function askQuestion() {
     responseDiv.innerHTML = html;
 }
 
+createFloatingButton();
 createPanel();
 
 document.addEventListener("click", function (e) {
@@ -94,4 +141,19 @@ document.addEventListener("click", function (e) {
         const seconds = parseInt(e.target.getAttribute("data-time"));
         jumpToTimestamp(seconds);
     }
+});
+
+document.addEventListener("click", function(e) {
+
+    if (e.target && e.target.id === "ll-toggle") {
+
+        const panel = document.getElementById("lecturelens-panel");
+
+        if (panel.style.width === "60px") {
+            panel.style.width = "360px";
+        } else {
+            panel.style.width = "60px";
+        }
+    }
+
 });

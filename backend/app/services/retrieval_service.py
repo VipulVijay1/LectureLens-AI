@@ -4,6 +4,7 @@ import numpy as np
 import faiss
 import time
 
+from rank_bm25 import BM25Okapi
 from app.core.index_manager import index_manager
 from app.core.config import DATA_DIR
 from app.core.logger import logger
@@ -15,6 +16,18 @@ from app.services.evaluation_service import (
     evaluate_answer_relevance
 )
 
+
+def tokenize(text):
+    return text.lower().split()
+
+def normalize_scores(scores):
+    min_s = min(scores)
+    max_s = max(scores)
+    
+    if max_s - min_s == 0:
+        return [1.0 for _ in scores]
+    
+    return [(s - min_s) / (max_s - min_s) for s in scores]
 
 def retrieve(video_id: str, query: str, top_k: int = 20):
 
@@ -35,6 +48,13 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
         chunks = json.load(f)
 
     # -----------------------------
+    # BM25 Setup
+    # -----------------------------
+    corpus = [chunk["text"] for chunk in chunks]
+    tokenized_corpus = [tokenize(doc) for doc in corpus]
+    bm25 = BM25Okapi(tokenized_corpus)
+
+    # -----------------------------
     # Query Embedding
     # -----------------------------
     query_embedding = model_loader.embedding_model.encode([query])
@@ -45,45 +65,112 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
     # FAISS Search
     # -----------------------------
     faiss_start = time.time()
-    scores, indices = index.search(query_embedding, top_k)
+    faiss_scores, faiss_indices = index.search(query_embedding, top_k)
     faiss_time = time.time() - faiss_start
 
-    retrieved = []
-    for score, idx in zip(scores[0], indices[0]):
+    faiss_results = []
+    for score, idx in zip(faiss_scores[0], faiss_indices[0]):
         if idx < len(chunks):
             chunk = chunks[idx]
-            retrieved.append({
+            faiss_results.append({
                 "timestamp": chunk["timestamp"],
                 "text": chunk["text"],
-                "score": float(score)
+                "score": float(score),
+                "source": "faiss"
             })
 
     # -----------------------------
+    # BM25 Search
+    # -----------------------------
+    bm25_start = time.time()
+    tokenized_query = tokenize(query)
+    bm25_scores = bm25.get_scores(tokenized_query)
+
+    bm25_indices = np.argsort(bm25_scores)[::-1][:top_k]
+    bm25_time = time.time() - bm25_start
+
+    bm25_results = []
+    for idx in bm25_indices:
+        if idx < len(chunks):
+            chunk = chunks[idx]
+            bm25_results.append({
+                "timestamp": chunk["timestamp"],
+                "text": chunk["text"],
+                "score": float(bm25_scores[idx]),
+                "source": "bm25"
+            })
+    
+    # Extract scores
+    faiss_scores_list = [item["score"] for item in faiss_results]
+    bm25_scores_list = [item["score"] for item in bm25_results]
+
+    # Normalize
+    faiss_norm = normalize_scores(faiss_scores_list)
+    bm25_norm = normalize_scores(bm25_scores_list)
+
+    # Assign normalized scores back
+    for i in range(len(faiss_results)):
+        faiss_results[i]["norm_score"] = faiss_norm[i]
+
+    for i in range(len(bm25_results)):
+        bm25_results[i]["norm_score"] = bm25_norm[i]
+
+
+    # -----------------------------
+    # Score Fusion (Weighted Hybrid)
+    # -----------------------------
+    alpha = 0.7  # FAISS weight
+    beta = 0.3   # BM25 weight
+
+    combined = []
+
+    for item in faiss_results:
+        item["final_score"] = alpha * item["norm_score"]
+        combined.append(item)
+
+    for item in bm25_results:
+        item["final_score"] = beta * item["norm_score"]
+        combined.append(item)
+
+
+    score_map = {}
+
+    for item in combined:
+        key = item["text"][:200]
+        
+        if key not in score_map:
+            score_map[key] = item
+        else:
+            # keep higher score
+            if item["final_score"] > score_map[key]["final_score"]:
+                score_map[key] = item
+
+    hybrid_results = list(score_map.values())
+
+    hybrid_results.sort(key=lambda x: x["final_score"], reverse=True)
+    
+    # -----------------------------
     # Cross-Encoder Re-ranking
     # -----------------------------
-    rerank_inputs = [(query, item["text"]) for item in retrieved]
+    rerank_inputs = [(query, item["text"]) for item in hybrid_results]
 
     rerank_start = time.time()
     rerank_scores = model_loader.reranker.predict(rerank_inputs)
     rerank_time = time.time() - rerank_start
 
     for i, score in enumerate(rerank_scores):
-        retrieved[i]["score"] = float(score)
+        hybrid_results[i]["score"] = float(score)
 
-    # Sort by rerank score (descending)
-    retrieved.sort(key=lambda x: x["score"], reverse=True)
+    hybrid_results.sort(key=lambda x: x["score"], reverse=True)
 
     # -----------------------------
     # LLM Generation (Top 4)
     # -----------------------------
-    # Keep only reasonably relevant chunks
-    filtered = [chunk for chunk in retrieved if chunk["score"] > 0]
+    filtered = [chunk for chunk in hybrid_results if chunk["score"] > 0]
 
-    # Fallback if all scores are low
     if not filtered:
-        filtered = retrieved[:3]
+        filtered = hybrid_results[:3]
 
-    # Remove near-duplicate texts
     unique_chunks = []
     seen_texts = set()
 
@@ -106,11 +193,14 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
     logger.info(
         f"Query completed for video {video_id} | "
         f"FAISS time: {faiss_time:.4f}s | "
+        f"BM25 time: {bm25_time:.4f}s | "
         f"Rerank time: {rerank_time:.4f}s | "
         f"Total time: {total_time:.4f}s"
     )
+
     if len(answer.strip()) < 20:
         answer = "The system could not generate a sufficient answer from the available context."
+
     return {
         "video_id": video_id,
         "answer": answer,
