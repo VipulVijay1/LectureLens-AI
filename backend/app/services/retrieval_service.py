@@ -17,6 +17,41 @@ from app.services.evaluation_service import (
 )
 
 
+def mmr_selection(query_embedding, chunk_embeddings, chunks, top_k=4, lambda_param=0.7):
+    selected = []
+    selected_indices = []
+
+    similarity_to_query = np.dot(chunk_embeddings, query_embedding.T).flatten()
+
+    while len(selected) < top_k:
+        if len(selected) == 0:
+            idx = np.argmax(similarity_to_query)
+            selected.append(chunks[idx])
+            selected_indices.append(idx)
+            continue
+
+        mmr_scores = []
+
+        for i in range(len(chunks)):
+            if i in selected_indices:
+                continue
+
+            relevance = similarity_to_query[i]
+
+            diversity = max(
+                np.dot(chunk_embeddings[i], chunk_embeddings[j])
+                for j in selected_indices
+            )
+
+            mmr_score = lambda_param * relevance - (1 - lambda_param) * diversity
+            mmr_scores.append((i, mmr_score))
+
+        idx = max(mmr_scores, key=lambda x: x[1])[0]
+        selected.append(chunks[idx])
+        selected_indices.append(idx)
+
+    return selected
+
 def tokenize(text):
     return text.lower().split()
 
@@ -46,7 +81,7 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
 
     with open(chunks_path, "r") as f:
         chunks = json.load(f)
-
+    chunk_embeddings = np.array([chunk["embedding"] for chunk in chunks])
     # -----------------------------
     # BM25 Setup
     # -----------------------------
@@ -61,11 +96,13 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
     query_embedding = np.array(query_embedding).astype("float32")
     faiss.normalize_L2(query_embedding)
 
+    query_embedding = query_embedding[0]  # IMPORTANT for MMR
+
     # -----------------------------
     # FAISS Search
     # -----------------------------
     faiss_start = time.time()
-    faiss_scores, faiss_indices = index.search(query_embedding, top_k)
+    faiss_scores, faiss_indices = index.search(query_embedding.reshape(1, -1), top_k)
     faiss_time = time.time() - faiss_start
 
     faiss_results = []
@@ -180,7 +217,20 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
             unique_chunks.append(chunk)
             seen_texts.add(text_key)
 
-    top_chunks = unique_chunks[:4]
+    text_to_index = {chunk["text"]: i for i, chunk in enumerate(chunks)}
+
+    # Extract embeddings only for hybrid_results
+    selected_embeddings = np.array([
+        chunk_embeddings[text_to_index[item["text"]]]
+        for item in unique_chunks
+    ])
+
+    top_chunks = mmr_selection(
+        query_embedding,
+        selected_embeddings,
+        unique_chunks,
+        top_k=4
+    )
 
     answer = generate_answer_with_llm(query, top_chunks)
 
