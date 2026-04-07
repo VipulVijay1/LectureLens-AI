@@ -6,6 +6,8 @@ from app.routers import ingest
 from app.routers import query
 from app.core.model_loader import model_loader
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers import storage
+
 
 app = FastAPI(title="LectureLens AI Backend")
 
@@ -21,6 +23,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(query.router)
+app.include_router(storage.router)
+
 
 @app.on_event("startup")
 def startup_event():
