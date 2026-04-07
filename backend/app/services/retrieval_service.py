@@ -16,6 +16,34 @@ from app.services.evaluation_service import (
 )
 
 
+#----------------------------
+# Compress Context
+#-----------------------------
+def compress_context(query, chunks):
+    compressed_chunks = []
+
+    for chunk in chunks:
+        prompt = f"""
+Extract only the most relevant sentences from the following text 
+that help answer the query.
+
+Query: {query}
+
+Text:
+{chunk["text"]}
+
+Relevant Content:
+"""
+
+        compressed_text = generate_answer_with_llm(prompt, [])
+        
+        compressed_chunks.append({
+            "timestamp": chunk["timestamp"],
+            "text": compressed_text.strip()
+        })
+
+    return compressed_chunks
+
 #-----------------------------
 # ReWrite Query
 #-----------------------------
@@ -225,7 +253,8 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
     # -----------------------------
     # LLM Answer
     # -----------------------------
-    answer = generate_answer_with_llm(query, top_chunks)
+    compressed_chunks = compress_context(query, top_chunks)
+    answer = generate_answer_with_llm(query, compressed_chunks)
 
     precision = evaluate_retrieval(query, top_chunks)
     faithfulness = evaluate_faithfulness(answer, top_chunks)
