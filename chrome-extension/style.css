@@ -342,3 +342,38 @@
         width: 260px;
     }
 }
+
+
+#ll-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.ll-tab {
+    flex: 1;
+    padding: 6px;
+    background: #1e293b;
+    border: none;
+    color: white;
+    cursor: pointer;
+}
+
+.ll-tab.active {
+    background: #38bdf8;
+}
+
+.ll-tab-content {
+    display: none;
+}
+
+.ll-tab-content.active {
+    display: block;
+}
+
+.ll-card {
+    background: #020617;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}

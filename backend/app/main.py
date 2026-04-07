@@ -7,7 +7,8 @@ from app.routers import query
 from app.core.model_loader import model_loader
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import storage
-
+from app.routers import flashcards
+from app.routers import notes
 
 app = FastAPI(title="LectureLens AI Backend")
 
@@ -24,6 +25,8 @@ app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(query.router)
 app.include_router(storage.router)
+app.include_router(flashcards.router)
+app.include_router(notes.router)
 
 
 @app.on_event("startup")
