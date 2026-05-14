@@ -3,34 +3,29 @@ import os
 import json
 
 from app.core.config import DATA_DIR
-from app.services.learning_service import generate_lecture_notes
+from app.services.retrieval_service import retrieve
+from app.services.learning_service import structure_summary
 
 router = APIRouter()
 
 
 @router.post("/notes")
-def get_notes(video_id: str):
+def get_notes(video_id: str, query: str):
     try:
-        # Path setup
         video_path = os.path.join(DATA_DIR, video_id)
-        chunks_path = os.path.join(video_path, "chunks.json")
 
-        # Check if video ingested
         if not os.path.exists(video_path):
             raise HTTPException(status_code=400, detail="Video not ingested")
 
-        if not os.path.exists(chunks_path):
-            raise HTTPException(status_code=400, detail="Chunks not found")
+        # 🔥 Step 1: Retrieve answer (summary)
+        result = retrieve(video_id, query)
+        summary = result["answer"]
 
-        # Load chunks
-        with open(chunks_path, "r") as f:
-            chunks = json.load(f)
+        if not summary:
+            raise HTTPException(status_code=400, detail="No summary generated")
 
-        if not chunks:
-            raise HTTPException(status_code=400, detail="No content available")
-
-        # Generate notes
-        notes = generate_lecture_notes(chunks)
+        # 🔥 Step 2: Structure summary
+        notes = structure_summary(summary)
 
         return {
             "video_id": video_id,

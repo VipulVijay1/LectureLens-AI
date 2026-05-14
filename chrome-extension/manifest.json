@@ -1,17 +1,26 @@
 {
   "manifest_version": 3,
   "name": "LectureLens AI",
-  "version": "1.0",
-  "description": "Ask questions about YouTube lectures",
-  "permissions": ["activeTab", "scripting"],
+  "version": "2.0",
+  "description": "AI-powered Q&A, notes and flashcards for YouTube lectures",
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
   "host_permissions": [
-    "http://127.0.0.1:8000/*"
+    "http://127.0.0.1:8000/*",
+    "https://fonts.googleapis.com/*",
+    "https://fonts.gstatic.com/*"
   ],
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/watch*"],
       "js": ["content.js"],
-      "css": ["style.css"]
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["style.css"],
+      "matches": ["https://www.youtube.com/*"]
     }
   ]
 }

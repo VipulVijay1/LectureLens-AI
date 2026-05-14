@@ -1,5 +1,6 @@
 import torch
-
+from app.services.ingestion_service import get_chunks_for_video
+from app.services.llm_service import generate_answer_with_llm
 
 
 def summarize_chunk(query, chunk_text):
@@ -79,4 +80,37 @@ Final Answer:
     return {
         "answer": final_answer,
         "sources": retrieved_chunks
+    }
+
+from app.services.ingestion_service import get_chunks_for_video
+
+def fallback_answer(video_id, query):
+
+    chunks = get_chunks_for_video(video_id)
+
+    if not chunks:
+        return {
+            "answer": "No transcript available for this video.",
+            "sources": []
+        }
+
+    relevant_chunks = chunks[:5]
+
+    answer = generate_answer_with_llm(
+        query,
+        relevant_chunks
+    )
+
+    formatted_sources = []
+
+    for chunk in relevant_chunks:
+        formatted_sources.append({
+            "timestamp": chunk["timestamp"],
+            "text": chunk["text"],
+            "score": 0.5
+        })
+
+    return {
+        "answer": answer,
+        "sources": formatted_sources
     }

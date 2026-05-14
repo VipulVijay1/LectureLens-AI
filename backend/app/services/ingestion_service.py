@@ -19,6 +19,9 @@ from app.core.logger import logger
 from app.core.model_loader import model_loader
 
 
+transcript_cache = {}
+chunk_cache = {}
+
 def seconds_to_timestamp(seconds):
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
@@ -27,45 +30,34 @@ def seconds_to_timestamp(seconds):
 
 
 def fetch_transcript(video_id):
-    """Fetch transcript for a given video ID using youtube-transcript-api v1.2.4"""
+    """Fetch transcript with caching"""
+    
+    # ✅ CACHE CHECK
+    if video_id in transcript_cache:
+        logger.info(f"Transcript cache hit for {video_id}")
+        return transcript_cache[video_id]
+
     try:
         logger.debug(f"Calling fetch with video_id={video_id}")
         
-        # Create API instance
         ytt_api = YouTubeTranscriptApi()
-        
-        # First, get the list of available transcripts (returns TranscriptList)
         transcript_list = ytt_api.list(video_id)
-        
-        # Try to get English transcript (manually created or auto-generated)
+
         transcript = None
         try:
-            # Try manually created transcript first
             transcript = transcript_list.find_manually_created_transcript(['en'])
-            logger.info(f"Found manually created transcript for {video_id}")
         except:
             try:
-                # Try auto-generated transcript
                 transcript = transcript_list.find_generated_transcript(['en'])
-                logger.info(f"Found auto-generated transcript for {video_id}")
             except:
-                # Fallback to any available transcript
                 transcript = transcript_list.find_transcript(['en'])
-                logger.info(f"Found fallback transcript for {video_id}")
-        
+
         if not transcript:
             raise Exception("No transcript found")
-        
-        # Fetch the actual transcript data - this returns FetchedTranscript
+
         fetched_transcript = transcript.fetch()
-        
-        if not fetched_transcript:
-            raise Exception("No transcript data received")
-        
-        # Convert to the format you need using to_raw_data()
         raw_data = fetched_transcript.to_raw_data()
-        
-        # Format the transcript
+
         formatted_transcript = []
         for entry in raw_data:
             formatted_transcript.append({
@@ -74,65 +66,77 @@ def fetch_transcript(video_id):
                 "start": entry['start'],
                 "duration": entry['duration']
             })
-        
-        logger.info(f"Successfully fetched {len(formatted_transcript)} transcript entries for {video_id}")
+
+        # ✅ STORE IN CACHE
+        transcript_cache[video_id] = formatted_transcript
+
+        logger.info(f"Fetched {len(formatted_transcript)} entries for {video_id}")
         return formatted_transcript
-        
+
     except Exception as e:
-        logger.error(f"Error fetching transcript for {video_id}: {str(e)}")
-        raise Exception(f"Failed to fetch transcript: {str(e)}")
+        logger.error(f"Error fetching transcript: {str(e)}")
+        raise
 
 def semantic_chunk(transcript_data, video_id, max_sentences=5, overlap=2):
-    """Chunk transcript into semantic segments"""
+    """Chunk transcript into semantic segments with caching"""
+
+    # ✅ CACHE CHECK
+    if video_id in chunk_cache:
+        logger.info(f"Chunk cache hit for {video_id}")
+        return chunk_cache[video_id]
+
     if not transcript_data:
-        raise Exception("No transcript data to chunk")
-    
+        raise Exception("No transcript data")
+
     sentences = []
-    
-    # Flatten transcript into sentences with timestamps
+
     for entry in transcript_data:
         if not entry.get("text"):
             continue
-            
+
         split_sentences = sent_tokenize(entry["text"])
         for sent in split_sentences:
-            if sent.strip():  # Only add non-empty sentences
+            if sent.strip():
                 sentences.append({
                     "text": sent.strip(),
                     "timestamp": entry["timestamp"]
                 })
 
-    if not sentences:
-        raise Exception("No sentences extracted from transcript")
-    
     chunks = []
     i = 0
 
     while i < len(sentences):
         chunk_sentences = sentences[i:i + max_sentences]
-        
+
         if chunk_sentences:
             chunk_text = " ".join([s["text"] for s in chunk_sentences])
             chunk_timestamp = chunk_sentences[0]["timestamp"]
-            
-            chunk_data = {
+
+            chunks.append({
                 "text": chunk_text,
                 "timestamp": chunk_timestamp,
                 "video_id": video_id
-            }
-            
-            chunks.append(chunk_data)
-        
+            })
+
         i += max_sentences - overlap
-    
-    if not chunks:
-        raise Exception("No chunks created from transcript")
-    
-    logger.info(f"Created {len(chunks)} chunks from {len(sentences)} sentences")
+
+    # ✅ STORE IN CACHE
+    chunk_cache[video_id] = chunks
+
+    logger.info(f"Created {len(chunks)} chunks")
     return chunks
 
 
+def get_chunks_for_video(video_id):
+    """
+    Used by fallback pipeline.
+    Avoids recomputation.
+    """
 
+    transcript = fetch_transcript(video_id)
+    chunks = semantic_chunk(transcript, video_id)
+
+    return chunks
 
 
 

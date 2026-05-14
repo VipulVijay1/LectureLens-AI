@@ -12,9 +12,9 @@ from app.core.model_loader import model_loader
 from app.services.evaluation_service import (
     evaluate_retrieval,
     evaluate_faithfulness,
-    evaluate_answer_relevance
+    evaluate_answer_relevance,
+    map_confidence
 )
-
 
 #----------------------------
 # Compress Context
@@ -258,6 +258,7 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
 
     precision = evaluate_retrieval(query, top_chunks)
     faithfulness = evaluate_faithfulness(answer, top_chunks)
+    confidence = map_confidence(faithfulness)
     relevance = evaluate_answer_relevance(query, answer)
 
     total_time = time.time() - start_time
@@ -268,6 +269,11 @@ def retrieve(video_id: str, query: str, top_k: int = 20):
         "video_id": video_id,
         "answer": answer,
         "sources": top_chunks,
+        "confidence": {
+            "label": confidence["label"],
+            "badge": confidence["badge"],
+            "score": faithfulness
+        },
         "evaluation": {
             "precision_at_k": precision,
             "faithfulness_score": faithfulness,

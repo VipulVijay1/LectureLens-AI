@@ -5,10 +5,6 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def evaluate_retrieval(query: str, chunks: list):
-    """
-    Returns precision score (0-1)
-    """
-
     relevant_count = 0
 
     for chunk in chunks:
@@ -18,8 +14,15 @@ def evaluate_retrieval(query: str, chunks: list):
         Chunk:
         {chunk['text']}
 
-        Is this chunk relevant to the query?
-        Answer only YES or NO.
+        Evaluate relevance strictly:
+
+        - 5 → directly answers the query
+        - 4 → strongly related
+        - 3 → somewhat related
+        - 2 → weakly related
+        - 1 → completely irrelevant
+
+        Return ONLY a number (1–5).
         """
 
         response = client.chat.completions.create(
@@ -28,14 +31,19 @@ def evaluate_retrieval(query: str, chunks: list):
             temperature=0
         )
 
-        verdict = response.choices[0].message.content.strip().upper()
+        verdict = response.choices[0].message.content.strip()
 
-        if "YES" in verdict:
+        try:
+            score = int(verdict)
+        except:
+            score = 3  
+        if score >= 4:
             relevant_count += 1
 
     precision = relevant_count / len(chunks) if chunks else 0
 
     return precision
+
 
 def evaluate_faithfulness(answer: str, chunks: list):
     context = "\n\n".join([c["text"] for c in chunks])
@@ -95,3 +103,53 @@ def evaluate_answer_relevance(query: str, answer: str):
         score = 3
 
     return score
+
+def evaluate_recall(query: str, chunks: list):
+    """
+    Estimate if important info is present
+    """
+    context = "\n\n".join([c["text"] for c in chunks])
+
+    prompt = f"""
+    Query:
+    {query}
+
+    Retrieved Context:
+    {context}
+
+    Does the retrieved context contain enough information to answer the query?
+    Score from 1 (missing info) to 5 (complete).
+    Return only number.
+    """
+
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
+
+    try:
+        return int(response.choices[0].message.content.strip())
+    except:
+        return 3
+    
+
+def evaluate_full(query, answer, chunks):
+    return {
+        "precision": evaluate_retrieval(query, chunks),
+        "recall": evaluate_recall(query, chunks),
+        "faithfulness": evaluate_faithfulness(answer, chunks),
+        "answer_relevance": evaluate_answer_relevance(query, answer)
+    }
+
+
+def map_confidence(faithfulness_score: int):
+    """
+    Map 1–5 faithfulness score → label + badge
+    """
+    if faithfulness_score >= 4:
+        return {"label": "HIGH", "badge": "🟢"}
+    elif faithfulness_score >= 3:
+        return {"label": "MEDIUM", "badge": "🟡"}
+    else:
+        return {"label": "LOW", "badge": "🔴"}

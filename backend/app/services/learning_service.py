@@ -1,16 +1,25 @@
 from app.services.llm_service import generate_answer_with_llm
 
 
-def generate_lecture_notes(chunks):
-    combined_text = "\n".join([chunk["text"] for chunk in chunks])
+def structure_summary(summary_text):
 
     prompt = f"""
 You are an expert teacher.
 
-Create well-structured lecture notes.
+Convert the following explanation into structured notes.
+
+Rules:
+- ONLY use the given content
+- DO NOT add extra information
+- DO NOT introduce new topics
+- Keep it clean and structured
+
+Format:
+- Headings
+- Bullet points
 
 Content:
-{combined_text}
+{summary_text}
 
 Notes:
 """
@@ -18,19 +27,23 @@ Notes:
     return generate_answer_with_llm(prompt, []).strip()
 
 
-def generate_flashcards(chunks):
+def generate_flashcards_from_chunks(chunks):
+
     combined_text = "\n".join([chunk["text"] for chunk in chunks])
+
+    # 🔥 limit size
+    combined_text = combined_text[:2000]
 
     prompt = f"""
 You are an expert teacher.
 
-Generate flashcards from the following lecture content.
+Generate flashcards ONLY from the given content.
 
-Instructions:
-- Create clear Question and Answer pairs
+STRICT RULES:
+- Focus ONLY on the topic present in content
+- DO NOT introduce new topics
+- DO NOT generalize to full lecture
 - Keep answers concise
-- Focus on key concepts
-- Generate at least 8–12 flashcards
 
 Format:
 Q: ...
@@ -42,6 +55,4 @@ Content:
 Flashcards:
 """
 
-    flashcards = generate_answer_with_llm(prompt, [])
-
-    return flashcards.strip()
+    return generate_answer_with_llm(prompt, []).strip()
