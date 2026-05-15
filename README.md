@@ -1,24 +1,118 @@
 # LectureLens AI
 
-An AI-powered Chrome extension–based YouTube learning assistant that enables semantic search and intelligent retrieval over long lecture videos using dense embeddings and FAISS.  
-Built fully on a local CPU environment without cloud APIs.
+LectureLens AI is an AI-powered Chrome extension that transforms YouTube lectures into an interactive learning experience using Retrieval-Augmented Generation (RAG), semantic search, and intelligent transcript understanding.
+
+The system enables users to ask natural language questions directly while watching educational videos and receive context-aware answers with timestamped references from the lecture.
+
+Designed with a production-oriented architecture, LectureLens AI combines FastAPI, FAISS, Redis, Celery, MongoDB, and modern NLP models to support scalable video ingestion and intelligent retrieval workflows.
 
 ---
 
-## 🚀 Project Overview
+## 🚀 Features
 
-LectureLens AI enhances long-form educational videos by enabling:
+* 🔎 Semantic search over lecture transcripts
+* ⏱ Timestamp-based source navigation
+* 🧠 Dense vector retrieval using Sentence Transformers
+* ⚡ Fast similarity search with FAISS
+* 🎯 Cross-encoder reranking for improved answer precision
+* 📝 AI-generated notes and flashcards
+* 📊 Evaluation pipeline for:
 
-- 🔎 Semantic search over lecture transcripts  
-- ⏱ Timestamp-based navigation  
-- 🧠 Dense vector retrieval using Sentence Transformers  
-- ⚡ Fast similarity search using FAISS  
-- 🎯 Cross-encoder re-ranking for improved precision  
-- 💾 Local caching of embeddings for performance  
-
-The system is designed to simulate a real-world Retrieval-Augmented Generation (RAG) architecture while running entirely on CPU.
+  * Precision
+  * Recall
+  * Faithfulness
+  * Answer relevance
+* 🛡 Confidence badge for hallucination detection
+* 🔄 Asynchronous background ingestion using Celery + Redis
+* 💾 Transcript and chunk caching for faster responses
+* 🌐 Chrome extension interface integrated directly into YouTube
 
 ---
 
-## 🏗 System Architecture (Current Stage)
+# 🏗 Architecture Overview
 
+## 1️⃣ Ingestion Pipeline
+
+When a user interacts with a lecture video:
+
+* Transcript is fetched automatically
+* Transcript is semantically chunked
+* Dense embeddings are generated
+* Embeddings are stored in FAISS
+* Metadata and processing status are tracked in MongoDB
+
+Background ingestion is handled asynchronously using Celery workers and Redis queues.
+
+---
+
+## 2️⃣ Retrieval Pipeline
+
+For every user query:
+
+* Query embeddings are generated
+* Relevant transcript chunks are retrieved from FAISS
+* MMR filtering improves diversity
+* Cross-encoder reranking improves relevance
+* Context-aware answers are generated using the LLM pipeline
+
+---
+
+## 3️⃣ Fallback Retrieval System
+
+To improve first-query responsiveness:
+
+* A lightweight fallback pipeline answers questions immediately from transcript chunks
+* Background ingestion continues asynchronously
+* Once processing completes, the system automatically switches to full RAG retrieval
+
+---
+
+## 4️⃣ Chrome Extension Integration
+
+The extension injects an AI assistant directly into YouTube and supports:
+
+* Asking lecture-related questions
+* Viewing timestamped sources
+* Navigating to exact lecture moments
+* Generating notes and flashcards
+* Displaying confidence indicators
+
+---
+
+# 🛠 Tech Stack
+
+## Backend
+
+* FastAPI
+* Celery
+* Redis
+* MongoDB
+
+## Retrieval & NLP
+
+* FAISS
+* Sentence Transformers (`all-MiniLM-L6-v2`)
+* Cross Encoder (`ms-marco-MiniLM`)
+* Groq LLM API (`llama-3.1-8b-instant`)
+
+## Frontend
+
+* Chrome Extension
+* JavaScript
+* CSS
+
+---
+
+# 🎯 Current Focus
+
+* Async scalable ingestion architecture
+* Multi-video retrieval support
+* Production-ready vector database migration
+* Spaced repetition learning workflows
+* Concept graph and learning gap detection
+
+---
+
+# 📌 Vision
+
+LectureLens AI aims to become an intelligent learning companion for long-form educational content by combining semantic retrieval, contextual reasoning, and interactive learning workflows into a seamless YouTube experience.
