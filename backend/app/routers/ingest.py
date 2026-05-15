@@ -15,7 +15,7 @@ def ingest(request: IngestRequest):
         existing = db.find_one({"video_id": video_id})
 
         # already running/completed
-        if existing and existing.get("status") in ["queued", "processing", "completed"]:
+        if existing and existing.get("status") in ["processing", "completed"]:
             return {
                 "message": "Video already queued or processed.",
                 "video_id": video_id,
